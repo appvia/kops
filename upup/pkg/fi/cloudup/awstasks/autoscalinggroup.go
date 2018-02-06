@@ -39,15 +39,12 @@ type AutoscalingGroup struct {
 	Name      *string
 	Lifecycle *fi.Lifecycle
 
-	MinSize *int64
-	MaxSize *int64
-	Subnets []*Subnet
-	Tags    map[string]string
-
-	Granularity *string
-	Metrics     []*string
-
+	EnabledMetrics      []*autoscaling.EnabledMetric
 	LaunchConfiguration *LaunchConfiguration
+	MinSize             *int64
+	MaxSize             *int64
+	Subnets             []*Subnet
+	Tags                map[string]string
 }
 
 var _ fi.CompareWithID = &AutoscalingGroup{}
@@ -113,6 +110,7 @@ func (e *AutoscalingGroup) Find(c *fi.Context) (*AutoscalingGroup, error) {
 	actual.Name = g.AutoScalingGroupName
 	actual.MinSize = g.MinSize
 	actual.MaxSize = g.MaxSize
+	actual.EnabledMetrics = g.EnabledMetrics
 
 	if g.VPCZoneIdentifier != nil {
 		subnets := strings.Split(*g.VPCZoneIdentifier, ",")
@@ -200,16 +198,22 @@ func (_ *AutoscalingGroup) RenderAWS(t *awsup.AWSAPITarget, a, e, changes *Autos
 			return fmt.Errorf("error creating AutoscalingGroup: %v", err)
 		}
 
-		_, err = t.Cloud.Autoscaling().EnableMetricsCollection(&autoscaling.EnableMetricsCollectionInput{
-			AutoScalingGroupName: e.Name,
-			Granularity:          e.Granularity,
-			Metrics:              e.Metrics,
-		})
+		if len(e.EnabledMetrics) > 0 {
+			var metrics []*string
+			for _, m := range e.EnabledMetrics {
+				metrics = append(metrics, m.Metric)
+			}
 
-		if err != nil {
-			return fmt.Errorf("error enabling metrics collection for AutoscalingGroup: %v", err)
+			_, err = t.Cloud.Autoscaling().EnableMetricsCollection(&autoscaling.EnableMetricsCollectionInput{
+				AutoScalingGroupName: e.Name,
+				Granularity:          e.EnabledMetrics[0].Granularity,
+				Metrics:              metrics,
+			})
+
+			if err != nil {
+				return fmt.Errorf("error enabling metrics collection for AutoscalingGroup: %v", err)
+			}
 		}
-
 	} else {
 		request := &autoscaling.UpdateAutoScalingGroupInput{
 			AutoScalingGroupName: e.Name,
@@ -313,13 +317,23 @@ type terraformAutoscalingGroup struct {
 }
 
 func (_ *AutoscalingGroup) RenderTerraform(t *terraform.TerraformTarget, a, e, changes *AutoscalingGroup) error {
+	var metrics []*string
+	var granularity *string
+
+	if len(e.EnabledMetrics) > 0 {
+		granularity = e.EnabledMetrics[0].Granularity
+		for _, m := range e.EnabledMetrics {
+			metrics = append(metrics, m.Metric)
+		}
+	}
+
 	tf := &terraformAutoscalingGroup{
 		Name:                    e.Name,
 		MinSize:                 e.MinSize,
 		MaxSize:                 e.MaxSize,
 		LaunchConfigurationName: e.LaunchConfiguration.TerraformLink(),
-		MetricsGranularity:      e.Granularity,
-		EnabledMetrics:          e.Metrics,
+		MetricsGranularity:      granularity,
+		EnabledMetrics:          metrics,
 	}
 
 	for _, s := range e.Subnets {
@@ -400,14 +414,24 @@ type cloudformationAutoscalingGroup struct {
 }
 
 func (_ *AutoscalingGroup) RenderCloudformation(t *cloudformation.CloudformationTarget, a, e, changes *AutoscalingGroup) error {
+	var metrics []*string
+	var granularity *string
+
+	if len(e.EnabledMetrics) > 0 {
+		granularity = e.EnabledMetrics[0].Granularity
+		for _, m := range e.EnabledMetrics {
+			metrics = append(metrics, m.Metric)
+		}
+	}
+
 	tf := &cloudformationAutoscalingGroup{
 		//Name:                    e.Name,
 		MinSize: e.MinSize,
 		MaxSize: e.MaxSize,
 		MetricsCollection: []*cloudformationASGMetricsCollection{
 			{
-				Granularity: e.Granularity,
-				Metrics:     e.Metrics,
+				Granularity: granularity,
+				Metrics:     metrics,
 			},
 		},
 		LaunchConfigurationName: e.LaunchConfiguration.CloudformationLink(),

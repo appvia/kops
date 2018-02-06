@@ -19,6 +19,7 @@ package awsmodel
 import (
 	"fmt"
 
+	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/golang/glog"
 
 	"k8s.io/kops/pkg/apis/kops"
@@ -176,16 +177,39 @@ func (b *AutoscalingGroupModelBuilder) Build(c *fi.ModelBuilderContext) error {
 				Name:      s(name),
 				Lifecycle: b.Lifecycle,
 
-				Granularity: s("1Minute"),
-				Metrics: []*string{
-					s("GroupMinSize"),
-					s("GroupMaxSize"),
-					s("GroupDesiredCapacity"),
-					s("GroupInServiceInstances"),
-					s("GroupPendingInstances"),
-					s("GroupStandbyInstances"),
-					s("GroupTerminatingInstances"),
-					s("GroupTotalInstances"),
+				EnabledMetrics: []*autoscaling.EnabledMetric{
+					{
+						Granularity: s("1Minute"),
+						Metric:      s("GroupMinSize"),
+					},
+					{
+						Granularity: s("1Minute"),
+						Metric:      s("GroupMaxSize"),
+					},
+					{
+						Granularity: s("1Minute"),
+						Metric:      s("GroupDesiredCapacity"),
+					},
+					{
+						Granularity: s("1Minute"),
+						Metric:      s("GroupInServiceInstances"),
+					},
+					{
+						Granularity: s("1Minute"),
+						Metric:      s("GroupPendingInstances"),
+					},
+					{
+						Granularity: s("1Minute"),
+						Metric:      s("GroupStandbyInstances"),
+					},
+					{
+						Granularity: s("1Minute"),
+						Metric:      s("GroupTerminatingInstances"),
+					},
+					{
+						Granularity: s("1Minute"),
+						Metric:      s("GroupTotalInstances"),
+					},
 				},
 
 				LaunchConfiguration: launchConfiguration,
